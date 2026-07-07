@@ -376,10 +376,10 @@ function render() {
     <nav class="sb-nav">
       ${['dashboard','new-po','po-list'].map(v=>`<div class="nav-item ${S.view===v?'active':''}" onclick="go('${v}')">· ${v==='dashboard'?'Dashboard':v==='new-po'?'Nueva Orden':'Historial'}</div>`).join('')}
       <div class="sb-section" style="margin-top:10px;">Catálogos</div>
-      ${['suppliers','settings'].map(v=>`<div class="nav-item ${S.view===v?'active':''}" onclick="go('${v}')">· ${v==='suppliers'?'Proveedores':'Config. Empresas'}</div>`).join('')}
+      ${['suppliers','products','settings'].map(v=>`<div class="nav-item ${S.view===v?'active':''}" onclick="go('${v}')">· ${v==='suppliers'?'Proveedores':v==='products'?'Productos':'Config. Empresas'}</div>`).join('')}
     </nav>
   `
-  const TITLES = { dashboard: 'Dashboard', 'new-po': 'Nueva Orden de Compra', 'po-list': 'Historial de Órdenes', suppliers: 'Catálogo de Proveedores', settings: 'Configuración' }
+  const TITLES = { dashboard: 'Dashboard', 'new-po': 'Nueva Orden de Compra', 'po-list': 'Historial de Órdenes', suppliers: 'Catálogo de Proveedores', products: 'Catálogo de Productos', settings: 'Configuración' }
   document.getElementById('main-header').innerHTML = `<div class="page-title">${TITLES[S.view] || S.view}</div>`
   
   const el = document.getElementById('main-body')
@@ -387,6 +387,7 @@ function render() {
   else if(S.view==='new-po') el.innerHTML = vNewPO()
   else if(S.view==='po-list') el.innerHTML = vPOList()
   else if(S.view==='suppliers') el.innerHTML = vSuppliers()
+  else if(S.view==='products') el.innerHTML = vProducts()
   else if(S.view==='settings') el.innerHTML = vSettings()
 }
 
@@ -898,6 +899,87 @@ function deleteSupplier(supplierId) {
   S.suppliers = S.suppliers.filter(s => s.id !== supplierId)
   persist()
   render()
+}
+
+function setProdSup(v) { S.prodSup = v; S.prodPage = 1; render(); }
+function setProdSearch(v) { S.prodSearch = v; S.prodPage = 1; render(); 
+  const el = document.getElementById('prod-search');
+  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}
+function setProdPage(p) { S.prodPage = p; render(); }
+
+function vProducts() {
+  const q = (S.prodSearch || '').toLowerCase();
+  const fSup = S.prodSup || '';
+  
+  let allProducts = [];
+  S.suppliers.forEach(s => {
+    if (s.products) {
+      s.products.forEach(p => {
+        allProducts.push({ supId: s.id, supName: s.name, desc: p.description, price: p.unitPrice });
+      });
+    }
+  });
+  
+  let filtered = allProducts;
+  if (fSup) filtered = filtered.filter(p => p.supId === fSup);
+  if (q) filtered = filtered.filter(p => p.desc.toLowerCase().includes(q) || p.supName.toLowerCase().includes(q));
+  
+  filtered.sort((a,b) => a.desc.localeCompare(b.desc));
+  
+  const perPage = 20;
+  const totalPages = Math.ceil(filtered.length / perPage) || 1;
+  const page = Math.min(S.prodPage || 1, totalPages);
+  const current = filtered.slice((page - 1) * perPage, page * perPage);
+
+  const supOptions = S.suppliers.map(s => `<option value="${s.id}" ${fSup===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
+
+  return `
+  <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 class="page-title">🏷️ Catálogo de Productos</h2>
+        <p style="color:var(--text2);font-size:13px;margin-top:4px;">${allProducts.length} producto${allProducts.length!==1?'s':''} registrados</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="prod-search" class="form-control" placeholder="Buscar producto..." value="${esc(S.prodSearch||'')}" oninput="setProdSearch(this.value)" style="width:230px;">
+        <select class="form-control" style="width:200px;" onchange="setProdSup(this.value)">
+          <option value="">Todos los proveedores</option>
+          ${supOptions}
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="S.prodSearch='';S.prodSup='';S.prodPage=1;render()" title="Limpiar filtros">✕ Limpiar</button>
+      </div>
+    </div>
+    
+    ${filtered.length === 0 ? `
+      <div class="card empty">
+        <div class="empty-ico">🏷️</div>
+        <p class="empty-title">No hay productos</p>
+        <p class="empty-desc">No se encontraron productos con estos filtros o no has registrado ninguno aún.</p>
+      </div>
+    ` : `
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table style="width:100%;">
+          <thead><tr><th>Descripción del Producto</th><th>Proveedor</th><th>Último Precio Unit.</th></tr></thead>
+          <tbody>
+            ${current.map(p => `
+              <tr>
+                <td><b>${esc(p.desc)}</b></td>
+                <td>${esc(p.supName)}</td>
+                <td>$${fmtNum(p.price)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:center;align-items:center;gap:15px;margin-top:20px;padding-bottom:20px;">
+        <button class="btn btn-secondary" onclick="setProdPage(${page-1})" ${page<=1?'disabled style="opacity:0.4;cursor:not-allowed;"':''}>◀ Anterior</button>
+        <span style="font-size:13.5px;font-weight:600;color:var(--text2);">Página ${page} de ${totalPages} <span style="font-weight:400;">(${filtered.length} resultados)</span></span>
+        <button class="btn btn-secondary" onclick="setProdPage(${page+1})" ${page>=totalPages?'disabled style="opacity:0.4;cursor:not-allowed;"':''}>Siguiente ▶</button>
+      </div>
+    `}
+  </div>
+  `
 }
 
 function vSettings() { return `<div class="card"><h3>Configuración</h3><p>La configuración está precargada por sistema.</p></div>` }
