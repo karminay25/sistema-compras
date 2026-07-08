@@ -355,8 +355,11 @@ function formatToWords(amount, currency) {
   return `${res} ${isUSD ? 'dólares' : 'pesos'} ${String(decPart).padStart(2,'0')}/100`
 }
 
-function calcTotals(items) {
-  return items.reduce((s, i) => s + (parseFloat(i.quantity||0) * parseFloat(i.unitPrice||0)), 0)
+function calcTotals(items, hasExtraCol) {
+  return items.reduce((s, i) => {
+    const extraMult = hasExtraCol && i.extraQty ? parseFloat(i.extraQty||1) : 1;
+    return s + (parseFloat(i.quantity||0) * extraMult * parseFloat(i.unitPrice||0));
+  }, 0)
 }
 
 function applyTheme(cid) {
@@ -483,13 +486,28 @@ function vNewPO() {
     </div>
 
     <div class="card mb-4">
-      <div style="display:flex;justify-content:space-between;margin-bottom:15px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
         <h3>4. Productos</h3>
-        <button class="btn btn-secondary btn-sm" onclick="addItem()">➕ Agregar Línea</button>
+        <div style="display:flex;gap:15px;align-items:center;">
+          <label style="font-size:13px;display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" id="f-hasextracol" ${f.hasExtraCol?'checked':''} onchange="toggleExtraCol(this.checked)">
+            Multiplicador extra
+          </label>
+          ${f.hasExtraCol ? `<input id="f-extracolname" class="form-control" style="width:100px;padding:2px 8px;font-size:13px;" value="${esc(f.extraColName||'Factor')}" placeholder="Nombre" onchange="updExtraColName(this.value)">` : ''}
+          <button class="btn btn-secondary btn-sm" onclick="addItem()">➕ Agregar Línea</button>
+        </div>
       </div>
       <div class="table-wrap mb-3">
         <table class="items-table">
-          <thead><tr><th style="width:10%">Cantidad</th><th style="width:15%">Unidad</th><th style="width:40%">Descripción</th><th style="width:18%">P. Unitario</th><th style="width:17%">Importe</th><th></th></tr></thead>
+          <thead><tr>
+            <th style="width:10%">Cantidad</th>
+            ${f.hasExtraCol ? `<th style="width:10%">${esc(f.extraColName||'Factor')}</th>` : ''}
+            <th style="width:15%">Unidad</th>
+            <th style="width:${f.hasExtraCol?'30%':'40%'}">Descripción</th>
+            <th style="width:18%">P. Unitario</th>
+            <th style="width:17%">Importe</th>
+            <th></th>
+          </tr></thead>
           <tbody id="items-tbody">${f.items.map(itemRow).join('')}</tbody>
         </table>
       </div>
@@ -517,9 +535,11 @@ function vNewPO() {
 }
 
 function itemRow(item) {
-  const tot = parseFloat(item.quantity||0) * parseFloat(item.unitPrice||0)
+  const extraMult = S.form.hasExtraCol ? parseFloat(item.extraQty||1) : 1;
+  const tot = parseFloat(item.quantity||0) * extraMult * parseFloat(item.unitPrice||0)
   return `<tr id="ir-${item.id}">
-    <td><input class="form-control" value="${esc(item.quantity)}" oninput="updItem(${item.id},'quantity',this.value)"></td>
+    <td><input type="number" step="any" class="form-control" value="${esc(item.quantity)}" oninput="updItem(${item.id},'quantity',this.value)"></td>
+    ${S.form.hasExtraCol ? `<td><input type="number" step="any" class="form-control" value="${esc(item.extraQty||'')}" oninput="updItem(${item.id},'extraQty',this.value)"></td>` : ''}
     <td><input class="form-control" value="${esc(item.unit||'')}" placeholder="Ej. Ha, Lts..." oninput="updItem(${item.id},'unit',this.value)"></td>
     <td><input class="form-control" list="supplier-products-list" value="${esc(item.description)}" oninput="updItem(${item.id},'description',this.value)"></td>
     <td><input type="number" step="0.01" class="form-control" value="${item.unitPrice}" oninput="updItem(${item.id},'unitPrice',this.value)"></td>
@@ -550,20 +570,22 @@ function updItem(id, field, val) {
     }
   }
 
-  const tot = parseFloat(it.quantity||0) * parseFloat(it.unitPrice||0)
+  const extraMult = S.form.hasExtraCol ? parseFloat(it.extraQty||1) : 1;
+  const tot = parseFloat(it.quantity||0) * extraMult * parseFloat(it.unitPrice||0)
   document.getElementById(`it-${id}`).innerText = `$${fmtNum(tot)}`
   updTotal()
 }
 function updTotal() {
   const curr = document.getElementById('f-curr').value
   document.getElementById('t-curr').innerText = curr
-  document.getElementById('t-tot').innerText = fmtNum(calcTotals(S.form.items))
+  document.getElementById('t-tot').innerText = fmtNum(calcTotals(S.form.items, S.form.hasExtraCol))
 }
 
 function readForm() {
   const f = S.form
   return {
     company: f.company, poNumber: document.getElementById('f-ponum').value || genPONum(f.company),
+    hasExtraCol: !!f.hasExtraCol, extraColName: f.extraColName,
     issueDate: document.getElementById('f-date').value,
     currency: document.getElementById('f-curr').value,
     centroCosto: document.getElementById('f-costo').value,
@@ -573,8 +595,20 @@ function readForm() {
     supplierAddress: document.getElementById('f-supaddr').value,
     solicitante: document.getElementById('f-sol').value, autorizo: document.getElementById('f-aut').value,
     datosFactura: document.getElementById('f-dfact').value, notasRecoleccion: document.getElementById('f-drec').value,
-    items: f.items, total: calcTotals(f.items), status: f.status || 'completed'
+    items: f.items, total: calcTotals(f.items, f.hasExtraCol), status: f.status || 'completed'
   }
+}
+
+function toggleExtraCol(val) {
+  syncForm();
+  S.form.hasExtraCol = val;
+  if (val && !S.form.extraColName) S.form.extraColName = 'Factor';
+  render();
+}
+function updExtraColName(val) {
+  syncForm();
+  S.form.extraColName = val;
+  render();
 }
 
 function fillSupplierByName(name) {
@@ -1062,16 +1096,18 @@ function printPO(id) {
   for(let i=0; i<12; i++) {
     const it = po.items[i]
     if (it) {
+      const extraMult = po.hasExtraCol ? parseFloat(it.extraQty||1) : 1;
       itemsHtml += `
       <tr>
         <td style="text-align:center;">${esc(it.quantity)}</td>
+        ${po.hasExtraCol ? `<td style="text-align:center;">${esc(it.extraQty||'')}</td>` : ''}
         <td style="text-align:center;">${esc(it.unit||'')}</td>
         <td>${esc(it.description)}</td>
         <td style="text-align:right;">$ ${fmtNum(it.unitPrice)}</td>
-        <td style="text-align:right;">$ ${fmtNum(parseFloat(it.quantity||0)*parseFloat(it.unitPrice||0))}</td>
+        <td style="text-align:right;">$ ${fmtNum(parseFloat(it.quantity||0)*extraMult*parseFloat(it.unitPrice||0))}</td>
       </tr>`
     } else {
-      itemsHtml += `<tr><td></td><td></td><td></td><td></td><td></td></tr>`
+      itemsHtml += `<tr><td></td>${po.hasExtraCol?'<td></td>':''}<td></td><td></td><td></td><td></td></tr>`
     }
   }
 
@@ -1104,8 +1140,9 @@ function printPO(id) {
           <thead>
             <tr>
               <th style="width:10%">CANTIDAD</th>
+              ${po.hasExtraCol ? `<th style="width:10%">${esc(po.extraColName||'FACTOR')}</th>` : ''}
               <th style="width:12%">UNIDAD</th>
-              <th style="width:40%">DESCRIPCIÓN</th>
+              <th style="width:${po.hasExtraCol?'30%':'40%'}">DESCRIPCIÓN</th>
               <th style="width:18%">P.UNITARIO</th>
               <th style="width:20%">IMPORTE</th>
             </tr>
@@ -1113,17 +1150,17 @@ function printPO(id) {
           <tbody>
             ${itemsHtml}
             <tr class="po-table-total-row">
-              <td colspan="3" style="border-right: 2px solid #000; border-bottom: 1px solid #000;"></td>
+              <td colspan="${po.hasExtraCol?'4':'3'}" style="border-right: 2px solid #000; border-bottom: 1px solid #000;"></td>
               <td style="font-weight: bold;">TOTAL USD</td>
               <td style="text-align: right;">${po.currency==='USD' ? '$ '+fmtNum(po.total) : '$ -'}</td>
             </tr>
             <tr class="po-table-total-row">
-              <td colspan="3" style="border-right: 2px solid #000; border-bottom: 1px solid #000;"></td>
+              <td colspan="${po.hasExtraCol?'4':'3'}" style="border-right: 2px solid #000; border-bottom: 1px solid #000;"></td>
               <td style="font-weight: bold; border-bottom: 1px solid #000;">TOTAL MXN</td>
               <td style="text-align: right; border-bottom: 1px solid #000;">${po.currency==='MXN' ? '$ '+fmtNum(po.total) : '$ -'}</td>
             </tr>
             <tr class="po-table-total-row">
-              <td colspan="3" style="border-right: 2px solid #000; border-bottom: none;"></td>
+              <td colspan="${po.hasExtraCol?'4':'3'}" style="border-right: 2px solid #000; border-bottom: none;"></td>
               <td colspan="2" style="text-align: right; font-size: 8.5pt; font-weight: normal; color: #4b5563;">
                 ${formatToWords(po.total, po.currency)}
               </td>
