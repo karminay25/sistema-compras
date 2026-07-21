@@ -246,7 +246,8 @@ let S = {
 
 function getDefaultFactura(cid) {
   const coName = S.companies[cid] ? S.companies[cid].name : 'LOLA BERRIES';
-  return `${coName.toUpperCase()}\nGASTOS EN GENERAL\nPPD\nRÉGIMEN 622\nCORREO: lolaberries_compras@outlook.com`;
+  const regimen = cid === 'bosbes_berries' ? '622' : '601';
+  return `${coName.toUpperCase()}\nGASTOS EN GENERAL\nRÉGIMEN ${regimen}\nCORREO: lolaberries_compras@outlook.com`;
 }
 const defaultRecoleccion = ""
 
@@ -260,7 +261,7 @@ function resetForm(editPO = null) {
     issueDate: new Date().toISOString().slice(0, 10),
     departamento: 'Cabezales arándano y frambuesa',
     centroCosto: '',
-    currency: 'USD',
+    currency: 'MXN',
     ivaAmount: '',
     solicitante: '', autorizo: 'Abril Plascencia P.',
     datosFactura: getDefaultFactura('lola_berries'), notasRecoleccion: defaultRecoleccion,
@@ -475,7 +476,7 @@ function render() {
     <nav class="sb-nav">
       ${['dashboard','new-po','po-list'].map(v=>`<div class="nav-item ${S.view===v?'active':''}" onclick="go('${v}')">· ${v==='dashboard'?'Dashboard':v==='new-po'?'Nueva Orden':'Historial'}</div>`).join('')}
       <div class="sb-section" style="margin-top:10px;">Catálogos</div>
-      ${['suppliers','products','settings'].map(v=>`<div class="nav-item ${S.view===v?'active':''}" onclick="go('${v}')">· ${v==='suppliers'?'Proveedores':v==='products'?'Productos':'Config. Empresas'}</div>`).join('')}
+      ${['suppliers','products'].map(v=>`<div class="nav-item ${S.view===v?'active':''}" onclick="go('${v}')">· ${v==='suppliers'?'Proveedores':'Productos'}</div>`).join('')}
     </nav>
   `
   const TITLES = { dashboard: 'Dashboard', 'new-po': 'Nueva Orden de Compra', 'po-list': 'Historial de Órdenes', suppliers: 'Catálogo de Proveedores', products: 'Catálogo de Productos', settings: 'Configuración' }
