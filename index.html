@@ -263,7 +263,7 @@ function resetForm(editPO = null) {
     centroCosto: '',
     currency: 'MXN',
     ivaAmount: '',
-    solicitante: '', autorizo: 'Abril Plascencia P.',
+    solicitante: '', autorizo: '',
     datosFactura: getDefaultFactura('lola_berries'), notasRecoleccion: defaultRecoleccion,
     status: 'draft', items: [{ id: 1, quantity: 1, description: '', unitPrice: 0 }], nextId: 2,
   }
@@ -545,7 +545,7 @@ function vNewPO() {
     <div class="card mb-4">
       <h3 style="margin-bottom:15px;">2. Datos de la Orden</h3>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Folio (Auto)</label><input id="f-ponum" class="form-control" value="${esc(poNum)}"></div>
+        <div class="form-group"><label class="form-label">Folio (Automático · no editable)</label><input id="f-ponum" class="form-control" value="${esc(poNum)}" readonly tabindex="-1" onkeydown="return false" onpaste="return false" style="background:#f1f5f9;color:#475569;cursor:not-allowed;" title="El folio se genera automáticamente y no puede modificarse."></div>
         <div class="form-group"><label class="form-label">Fecha</label><input id="f-date" type="date" class="form-control" value="${f.issueDate}"></div>
         <div class="form-group"><label class="form-label">Moneda</label>
           <select id="f-curr" class="form-control" onchange="updTotal()">
@@ -1247,9 +1247,10 @@ function printPO(id) {
       </div>
       
       <div class="po-section text-center" style="padding: 8px; font-weight: bold; font-size: 11pt;">
-        ORDEN DE COMPRA
+        ORDEN DE COMPRA<br>
+        <span style="font-size: 10pt;">FOLIO: ${esc(po.poNumber)}</span>
       </div>
-      
+
       <div class="po-section po-flex" style="padding: 10px 20px; font-size: 10pt;">
         <div style="width: 50%;"><b>CENTRO DE COSTO:</b> ${esc(po.centroCosto ? costCenterLabel(po.centroCosto) : po.departamento)}</div>
         <div style="width: 50%; text-align: right;"><b>FECHA:</b> ${fmtDate(po.issueDate)}</div>
